@@ -5,5 +5,6 @@ Simple browser extension that allows you to post a link to the current website y
 ### todo
 
 - [] styling
-- [] post current link alongside the comment
+- [] improve refresh token situation
 - [] ship
+- [] can we overcome cors error when fetching website images?
