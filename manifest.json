@@ -1,0 +1,10 @@
+{
+  "name": "Blue Sky Post It",
+  "description": "With two clicks, post the current link, with a comment to Blue Sky.",
+  "version": "1.0",
+  "manifest_version": 3,
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": "blue-sky-post-it.png"
+  }
+}
