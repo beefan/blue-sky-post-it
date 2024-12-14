@@ -6,5 +6,9 @@
   "action": {
     "default_popup": "index.html",
     "default_icon": "blue-sky-post-it.png"
-  }
+  },
+  "permissions": [
+    "tabs",
+    "activeTab"
+  ]
 }
