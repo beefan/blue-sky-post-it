@@ -41,14 +41,9 @@ function getCurrentTabUrl() {
   });
 }
 
-async function post(text, attempts = 0) {
-  const session = JSON.parse(CookieMonster.get('blue-sky-post-it-session'));
-  if (!session) {
-    return;
-  }
-
+async function post(text) {
   const link = await getCurrentTabUrl();
-  const card = await fetchEmbedUrlCard(link, session);
+  const card = await fetchEmbedUrlCard(link);
 
   const fullText = text + ' ' + link;
   const facets = detectFacets(fullText);
@@ -59,38 +54,47 @@ async function post(text, attempts = 0) {
     embed: card,
   };
 
-  const response = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
-    method: 'POST',
-    headers: {
-      "Authorization": `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      repo: session.username,
-      collection: "app.bsky.feed.post",
-      record: newPost,
-    })
-  });
-  const status = response.status;
-  const body = await response.json();
-
-  // blue sky sends 400 on expired tokens
-  // https://docs.bsky.app/docs/api/com-atproto-repo-create-record
-  if (status === 400 && attempts < 1) {
-    await refreshToken();
-    return post(text, attempts + 1);
-  }
-
-  return { status, body };
+  return await makeCall(
+    async (data, session) => {
+      return await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
+        method: 'POST',
+        headers: {
+          "Authorization": `Bearer ${session.accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          repo: session.username,
+          collection: "app.bsky.feed.post",
+          record: data,
+        })
+      })
+    }, 
+    newPost
+  );
 }
 
-
-async function refreshToken() {
+async function makeCall(call, data) {
   const session = JSON.parse(CookieMonster.get('blue-sky-post-it-session'));
   if (!session) {
     return;
   }
 
+  let response = await call(data, session);
+
+  // blue sky sends 400 on expired tokens
+  // https://docs.bsky.app/docs/api/com-atproto-repo-create-record
+  if (response.status === 400) {
+    const newSession = await refreshToken(session);
+    response = await call(data, newSession);
+  }
+
+  const status = response.status;
+  const body = await response.json();
+
+  return { status, body };
+}
+
+async function refreshToken(session) {
   const response = await fetch('https://bsky.social/xrpc/com.atproto.server.refreshSession', {
     method: 'POST',
     headers: {
@@ -110,6 +114,8 @@ async function refreshToken() {
 
   session.accessToken = body.accessJwt;
   CookieMonster.set('blue-sky-post-it-session', JSON.stringify(session), 30);
+
+  return session;
 }
 
 // https://docs.bsky.app/docs/advanced-guides/post-richtext#rich-text-facets
@@ -190,7 +196,7 @@ function utf16IndexToUtf8Index(utf16, index) {
 }
 
 // https://docs.bsky.app/blog/create-post#website-card-embeds
-async function fetchEmbedUrlCard(url, session) {
+async function fetchEmbedUrlCard(url) {
   const card = {
     uri: url,
     title: "",
@@ -220,8 +226,7 @@ async function fetchEmbedUrlCard(url, session) {
     if (imageTag) {
       let imgUrl = imageTag.getAttribute('content');
       if (!imgUrl.includes('://')) {
-        const baseUrl = new URL(url);
-        imgUrl = `${baseUrl.protocol}//${baseUrl.host}${imgUrl}`;
+        imgUrl = `${baseUrl}${imgUrl}`;
       }
       card.image = imgUrl;
     }
@@ -230,27 +235,35 @@ async function fetchEmbedUrlCard(url, session) {
   }
 
   // get blob from image url
-  try {
-    const imageResponse = await fetch(card.image);
-    const imageBlob = await imageResponse.blob();
+  if (card.image.includes('://')) {
+    try {
+      const imageResponse = await fetch(card.image);
+      const imageBlob = await imageResponse.blob();
 
-    const response = await fetch('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', {
-      method: 'POST',
-      headers: {
-        "Content-Type": "image/jpeg",
-        "Authorization": `Bearer ${session.accessJwt}`,
-      },
-      body: imageBlob
-    });
-    const status = response.status;
-    const body = await response.json();
-    console.log('upload image', status, body);
-    if (status !== 200) {
-      console.error('Error uploading image', status, body);
+
+      const {status, body } = await makeCall(
+        async (data, session) => {
+          return await fetch('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', {
+            method: 'POST',
+            headers: {
+              "Content-Type": "image/jpeg",
+              "Authorization": `Bearer ${session.accessJwt}`,
+            },
+            body: data
+          })
+        },
+        imageBlob
+      );
+
+      if (status !== 200) {
+        console.error('Error uploading image', status, body);
+      } else {
+        console.log('upload image', status, body);
+        card.thumb = body.blob;
+      }
+    } catch (error) {
+      console.error('Error fetching or uploading the image:', error);
     }
-    card.thumb = body.blob;
-  } catch (error) {
-    console.error('Error fetching or uploading the image:', error);
   }
 
   return {
