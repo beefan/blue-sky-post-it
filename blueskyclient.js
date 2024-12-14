@@ -42,18 +42,21 @@ function getCurrentTabUrl() {
 }
 
 async function post(text, attempts = 0) {
-  const link = await getCurrentTabUrl();
   const session = JSON.parse(CookieMonster.get('blue-sky-post-it-session'));
   if (!session) {
     return;
   }
+
+  const link = await getCurrentTabUrl();
+  const card = await fetchEmbedUrlCard(link, session);
 
   const fullText = text + ' ' + link;
   const facets = detectFacets(fullText);
   const newPost = {
     text: fullText,
     facets: facets,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    embed: card,
   };
 
   const response = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
@@ -184,6 +187,76 @@ function detectFacets(text) {
 
 function utf16IndexToUtf8Index(utf16, index) {
   return (new TextEncoder()).encode(utf16.slice(0, index)).byteLength;
+}
+
+// https://docs.bsky.app/blog/create-post#website-card-embeds
+async function fetchEmbedUrlCard(url, session) {
+  const card = {
+    uri: url,
+    title: "",
+    description: "",
+  };
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    const text = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/html');
+
+    const titleTag = doc.querySelector('meta[property="og:title"]');
+    if (titleTag) {
+      card.title = titleTag.getAttribute('content');
+    }
+
+    const descriptionTag = doc.querySelector('meta[property="og:description"]');
+    if (descriptionTag) {
+      card.description = descriptionTag.getAttribute('content');
+    }
+
+    const imageTag = doc.querySelector('meta[property="og:image"]');
+    if (imageTag) {
+      let imgUrl = imageTag.getAttribute('content');
+      if (!imgUrl.includes('://')) {
+        const baseUrl = new URL(url);
+        imgUrl = `${baseUrl.protocol}//${baseUrl.host}${imgUrl}`;
+      }
+      card.image = imgUrl;
+    }
+  } catch (error) {
+    console.error('Error fetching or parsing the URL:', error);
+  }
+
+  // get blob from image url
+  try {
+    const imageResponse = await fetch(card.image);
+    const imageBlob = await imageResponse.blob();
+
+    const response = await fetch('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', {
+      method: 'POST',
+      headers: {
+        "Content-Type": "image/jpeg",
+        "Authorization": `Bearer ${session.accessJwt}`,
+      },
+      body: imageBlob
+    });
+    const status = response.status;
+    const body = await response.json();
+    console.log('upload image', status, body);
+    if (status !== 200) {
+      console.error('Error uploading image', status, body);
+    }
+    card.thumb = body.blob;
+  } catch (error) {
+    console.error('Error fetching or uploading the image:', error);
+  }
+
+  return {
+    "$type": "app.bsky.embed.external",
+    "external": card,
+  };
 }
 
 export default {
