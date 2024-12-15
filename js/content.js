@@ -8,10 +8,10 @@ console.info('blue sky post it extension initiated');
 if (! (await BlueSkyClient.isUserLoggedIn())) {
   displayBlueSkyLoginButton();
 } else {
-  addOpenCommentBox();
+  displayOpenCommentBox();
 }
 
-function addOpenCommentBox() {  
+function displayOpenCommentBox() {  
   const openCommentBox = document.createElement('div');
   openCommentBox.id = 'open-comment-box';
 
@@ -25,7 +25,7 @@ function addOpenCommentBox() {
   textarea.placeholder = "You won't believe this article!";
 
   const submitButton = document.createElement('button');
-  submitButton.id = 'submitPost';
+  submitButton.id = 'submit-post';
   submitButton.textContent = 'Post';
 
   openCommentBox.appendChild(label);
@@ -42,7 +42,7 @@ function addOpenCommentBox() {
 
 function displayBlueSkyLoginButton() {
   const blueSkyLoginButton = document.createElement('button');
-  blueSkyLoginButton.id = 'login';
+  blueSkyLoginButton.id = 'login-button';
   blueSkyLoginButton.textContent = 'Login to BlueSky';
   blueSkyLoginButton.addEventListener('click', () => {
     displayBlueSkyLogin();
@@ -66,8 +66,8 @@ function displayBlueSkyLogin() {
   passwordInput.placeholder = 'password';
 
   const submitButton = document.createElement('button');
-  submitButton.id = 'submit';
-  submitButton.textContent = 'Submit';
+  submitButton.id = 'submit-login';
+  submitButton.textContent = 'Login';
 
   blueSkyLogin.appendChild(usernameInput);
   blueSkyLogin.appendChild(passwordInput);
@@ -93,20 +93,29 @@ async function login(username, password) {
       return
     }
 
-    addOpenCommentBox();
+    displayOpenCommentBox();
   });
 }
 
 function displaySuccess() {
   const successMessage = document.createElement('h1');
+  successMessage.id = 'success-message';
   successMessage.textContent = 'Success!';
   replaceState(successMessage);
 }
 
 function displayError(message = null) {  
   const errorMessage = document.createElement('h1');
+  errorMessage.id = 'error-message';
   errorMessage.textContent = message || 'Something went wrong. Please try again later';
   replaceState(errorMessage);
+}
+
+function displayLoading() {
+  const submitButton = document.getElementById('submit-post');
+  const spinner = document.createElement('div');
+  spinner.classList.add('spinner');
+  submitButton.replaceWith(spinner);
 }
 
 function replaceState(newState) {
@@ -121,6 +130,8 @@ function replaceState(newState) {
 async function postIt(text) {
   const url = await Browser.getCurrentTabUrl();
   const fullText = text + ' ' + url;
+
+  displayLoading();
 
   const siteTextResponse = await chrome.runtime.sendMessage({
     action: actions.FETCH_SITE_TEXT,
