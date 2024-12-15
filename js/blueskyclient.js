@@ -1,22 +1,15 @@
 import CookieMonster from './cookie-monster.js';
+import BlueSkyApi from './blueskyapi.js';
 
-const baseUrl = 'https://bsky.social/';
+const SESSION_COOKIE_KEY = 'blue-sky-post-it-session';
+
 
 async function isUserLoggedIn() {
-  return !!CookieMonster.get('blue-sky-post-it-session');
+  return !!CookieMonster.get(SESSION_COOKIE_KEY);
 }
 
 async function login (username, password) {
-  const response = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      identifier: username,
-      password: password
-    })
-  });
+  const response = BlueSkyApi.login(username, password);
   const status = response.status;
   const body = await response.json();
 
@@ -26,7 +19,7 @@ async function login (username, password) {
       accessToken: body.accessJwt,
       refreshToken: body.refreshJwt,
     });
-    CookieMonster.set('blue-sky-post-it-session', session, 30);
+    CookieMonster.set(SESSION_COOKIE_KEY, session, 30);
   }
 
   return { status, body };
@@ -56,27 +49,11 @@ async function post(text) {
     embed: card,
   };
 
-  return await makeCall(
-    async (data, session) => {
-      return await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
-        method: 'POST',
-        headers: {
-          "Authorization": `Bearer ${session.accessToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          repo: session.username,
-          collection: "app.bsky.feed.post",
-          record: data,
-        })
-      })
-    }, 
-    newPost
-  );
+  return await callWithAuth(BlueSkyApi.post, newPost);
 }
 
-async function makeCall(call, data) {
-  const session = JSON.parse(CookieMonster.get('blue-sky-post-it-session'));
+async function callWithAuth(call, data) {
+  const session = JSON.parse(CookieMonster.get(SESSION_COOKIE_KEY));
   if (!session) {
     return;
   }
@@ -97,25 +74,19 @@ async function makeCall(call, data) {
 }
 
 async function refreshToken(session) {
-  const response = await fetch('https://bsky.social/xrpc/com.atproto.server.refreshSession', {
-    method: 'POST',
-    headers: {
-      "Authorization": `Bearer ${session.refreshToken}`,
-      "Content-Type": "application/json"
-    },
-  });
+  const response = await BlueSkyApi.refreshToken(session.refreshToken);
   const status = response.status;
   const body = await response.json();
 
   if (status !== 200) {
     console.error('Error refreshing token', status, body);
     alert('Something went wrong posting to blue sky, Please try again later');
-    CookieMonster.delete('blue-sky-post-it-session');
+    CookieMonster.delete(SESSION_COOKIE_KEY);
     return;
   }
 
   session.accessToken = body.accessJwt;
-  CookieMonster.set('blue-sky-post-it-session', JSON.stringify(session), 30);
+  CookieMonster.set(SESSION_COOKIE_KEY, JSON.stringify(session), 30);
 
   return session;
 }
@@ -242,20 +213,7 @@ async function fetchEmbedUrlCard(url) {
       const imageResponse = await fetch(card.image);
       const imageBlob = await imageResponse.blob();
 
-
-      const {status, body } = await makeCall(
-        async (data, session) => {
-          return await fetch('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', {
-            method: 'POST',
-            headers: {
-              "Content-Type": "image/jpeg",
-              "Authorization": `Bearer ${session.accessJwt}`,
-            },
-            body: data
-          })
-        },
-        imageBlob
-      );
+      const {status, body } = await callWithAuth(BlueSkyApi.uploadImageBlob, imageBlob);
 
       if (status !== 200) {
         console.error('Error uploading image', status, body);
