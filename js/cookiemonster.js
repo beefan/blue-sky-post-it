@@ -1,14 +1,14 @@
 async function getCookie(key) {
-  const value = await chrome.storage.sync.get([key]);
+  const value = await chrome.storage.local.get([key]);
   return value[key] || null;
 }
 
 async function setCookie(key, value) {
-  await chrome.storage.sync.set({ [key]: value });
+  await chrome.storage.local.set({ [key]: value });
 }
 
 async function deleteCookie(key) {
-  await chrome.storage.sync.set({ [key]: null });
+  await chrome.storage.local.set({ [key]: null });
 }
 
 export default {
