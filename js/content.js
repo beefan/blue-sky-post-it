@@ -5,62 +5,81 @@ import actions from './serviceactions.js';
 
 console.info('blue sky post it extension initiated');
 
-// start with the extension root. We doing this all javascript, baby!
-const app = document.getElementById('app');
-
 if (! (await BlueSkyClient.isUserLoggedIn())) {
-  addBlueSkyLoginButton();
+  displayBlueSkyLoginButton();
 } else {
   addOpenCommentBox();
 }
 
-function addOpenCommentBox() {
+function addOpenCommentBox() {  
   const openCommentBox = document.createElement('div');
   openCommentBox.id = 'open-comment-box';
-  openCommentBox.innerHTML = `
-    <label for="comment">Post link to current site and comment to blue sky:</label>
-    <textarea id="comment" placeholder="You won't believe this article!"></textarea>
-    <button id="submitPost">Post</button>
-  `;
-  app.innerHTML = '';
-  app.appendChild(openCommentBox);
 
-  const submitButton = document.getElementById('submitPost');
+  const label = document.createElement('label');
+  label.setAttribute('for', 'comment');
+  label.textContent = 'Post link to current tab and comment to blue sky:';
+
+  const textarea = document.createElement('textarea');
+  textarea.id = 'comment';
+  textarea.rows = 4;
+  textarea.placeholder = "You won't believe this article!";
+
+  const submitButton = document.createElement('button');
+  submitButton.id = 'submitPost';
+  submitButton.textContent = 'Post';
+
+  openCommentBox.appendChild(label);
+  openCommentBox.appendChild(textarea);
+  openCommentBox.appendChild(submitButton);
+
   submitButton.addEventListener('click', () => {
     const comment = document.getElementById('comment').value;
     postIt(comment);
   });
+
+  replaceState(openCommentBox);
 }
 
-function addBlueSkyLoginButton() {
+function displayBlueSkyLoginButton() {
   const blueSkyLoginButton = document.createElement('button');
   blueSkyLoginButton.id = 'login';
-  blueSkyLoginButton.innerHTML = 'Login to BlueSky';
+  blueSkyLoginButton.textContent = 'Login to BlueSky';
   blueSkyLoginButton.addEventListener('click', () => {
-    app.removeChild(blueSkyLoginButton);
-    addBlueSkyLogin();
+    displayBlueSkyLogin();
   });
 
-  app.appendChild(blueSkyLoginButton);
+  replaceState(blueSkyLoginButton);
 }
 
-function addBlueSkyLogin() {
+function displayBlueSkyLogin() {
   const blueSkyLogin = document.createElement('div');
   blueSkyLogin.id = 'login';
-  blueSkyLogin.innerHTML = `
-    <input type="text" id="username" placeholder="username">
-    <input type="password" id="password" placeholder="password">
-    <button id="submit">Submit</button>
-  `;
 
-  app.appendChild(blueSkyLogin);
+  const usernameInput = document.createElement('input');
+  usernameInput.type = 'text';
+  usernameInput.id = 'username';
+  usernameInput.placeholder = 'username';
 
-  const submitButton = document.getElementById('submit');
+  const passwordInput = document.createElement('input');
+  passwordInput.type = 'password';
+  passwordInput.id = 'password';
+  passwordInput.placeholder = 'password';
+
+  const submitButton = document.createElement('button');
+  submitButton.id = 'submit';
+  submitButton.textContent = 'Submit';
+
+  blueSkyLogin.appendChild(usernameInput);
+  blueSkyLogin.appendChild(passwordInput);
+  blueSkyLogin.appendChild(submitButton);
+
   submitButton.addEventListener('click', () => {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
     login(username, password);
   });
+
+  replaceState(blueSkyLogin);
 }
 
 async function login(username, password) {
@@ -79,14 +98,24 @@ async function login(username, password) {
 }
 
 function displaySuccess() {
-  const login = document.getElementById('app');
-  login.innerHTML = '<h1>Success!</h1>';
+  const successMessage = document.createElement('h1');
+  successMessage.textContent = 'Success!';
+  replaceState(successMessage);
 }
 
-function displayError(message = null) {
-  const login = document.getElementById('app');
-  const errorMessage = message || 'Something went wrong. Please try again later';
-  login.innerHTML = `<h1>${errorMessage}</h1>`;
+function displayError(message = null) {  
+  const errorMessage = document.createElement('h1');
+  errorMessage.textContent = message || 'Something went wrong. Please try again later';
+  replaceState(errorMessage);
+}
+
+function replaceState(newState) {
+  const app = document.getElementById('app');
+
+  while (app.firstChild) {
+    app.removeChild(app.firstChild);
+  }
+  app.appendChild(newState);
 }
 
 async function postIt(text) {
