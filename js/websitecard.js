@@ -4,7 +4,7 @@
  * @param {String} url 
  * @returns {Object|null} A card object, or null in case of an error.
  */
-async function get(url) {
+async function get(url, rawSiteText) {
   const card = {
     uri: url,
     title: "",
@@ -12,13 +12,8 @@ async function get(url) {
   };
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-    const text = await response.text();
     const parser = new DOMParser();
-    const doc = parser.parseFromString(text, 'text/html');
+    const doc = parser.parseFromString(rawSiteText, 'text/html');
 
     const titleTag = doc.querySelector('meta[property="og:title"]');
     if (titleTag) {

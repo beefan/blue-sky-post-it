@@ -1,6 +1,6 @@
 function getCurrentTabUrl() {
   return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    chrome.tabs.query({ active: true }, function(tabs) {
       if (chrome.runtime.lastError) {
         return reject(chrome.runtime.lastError);
       }

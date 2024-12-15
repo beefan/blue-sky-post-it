@@ -40,8 +40,8 @@ const BlueSkyApi = {
     return await fetch(`${BASE_URL}xrpc/com.atproto.repo.uploadBlob`, {
       method: 'POST',
       headers: {
+        "Authorization": `Bearer ${session.accessToken}`,
         "Content-Type": "image/jpeg",
-        "Authorization": `Bearer ${session.accessJwt}`,
       },
       body: data
     })

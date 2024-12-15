@@ -1,11 +1,14 @@
 import BlueSkyClient from './blueskyclient.js';
+import Browser from './browser.js';
+import WebsiteCard from './websitecard.js';
+import actions from './serviceactions.js';
 
 console.info('blue sky post it extension initiated');
 
 // start with the extension root. We doing this all javascript, baby!
 const app = document.getElementById('app');
 
-if (!BlueSkyClient.isUserLoggedIn()) {
+if (! (await BlueSkyClient.isUserLoggedIn())) {
   addBlueSkyLoginButton();
 } else {
   addOpenCommentBox();
@@ -61,15 +64,18 @@ function addBlueSkyLogin() {
 }
 
 async function login(username, password) {
-  const { status, body } = await BlueSkyClient.login(username, password);
+  chrome.runtime.sendMessage({
+    action: actions.BLUE_SKY_LOGIN,
+    data: {username, password},
+  }, (response) => {
+    if (response.status !== 200) {
+      console.warn('Cant log in to blue sky', response);
+      displayError(response.body?.message);
+      return
+    }
 
-  if (status !== 200) {
-    console.error('Error logging in to blue sky', status, body);
-    alert('Something went wrong logging in to blue sky, Please try again later');
-    return
-  }
-
-  addOpenCommentBox();
+    addOpenCommentBox();
+  });
 }
 
 function displaySuccess() {
@@ -77,12 +83,37 @@ function displaySuccess() {
   login.innerHTML = '<h1>Success!</h1>';
 }
 
-async function postIt(text) {
-  const { status, body } = await BlueSkyClient.post(text);
+function displayError(message = null) {
+  const login = document.getElementById('app');
+  const errorMessage = message || 'Something went wrong. Please try again later';
+  login.innerHTML = `<h1>${errorMessage}</h1>`;
+}
 
-  if (status !== 200) {
-    console.error('Error posting to blue sky', status, body);
-    alert('Something went wrong posting to blue sky, Please try again later');
+async function postIt(text) {
+  const url = await Browser.getCurrentTabUrl();
+  const fullText = text + ' ' + url;
+
+  const siteTextResponse = await chrome.runtime.sendMessage({
+    action: actions.FETCH_SITE_TEXT,
+    data: { url },
+  });
+
+  if (siteTextResponse.status !== 200) {
+    console.warn('Error fetching site text', siteTextResponse);
+    displayError(siteTextResponse.body?.message);
+    return;
+  }
+
+  const card = await WebsiteCard.get(url, siteTextResponse.body);
+
+  const postResponse = await chrome.runtime.sendMessage({
+    action: actions.BLUE_SKY_POST,
+    data: { text: fullText, card },
+  });
+
+  if (postResponse.status !== 200) {
+    console.warn('Error posting to blue sky', postResponse);
+    displayError(postResponse.body?.message);
     return;
   }
 

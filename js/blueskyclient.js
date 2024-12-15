@@ -1,17 +1,16 @@
-import CookieMonster from './cookie-monster.js';
+import CookieMonster from './cookiemonster.js';
 import BlueSkyApi from './blueskyapi.js';
-import Browser from './browser.js';
-import WebsiteCard from './websitecard.js';
 
 const SESSION_COOKIE_KEY = 'blue-sky-post-it-session';
 
 
 async function isUserLoggedIn() {
-  return !!CookieMonster.get(SESSION_COOKIE_KEY);
+  const session = await CookieMonster.get(SESSION_COOKIE_KEY);
+  return !!session;
 }
 
 async function login (username, password) {
-  const response = BlueSkyApi.login(username, password);
+  const response = await BlueSkyApi.login(username, password);
   const status = response.status;
   const body = await response.json();
 
@@ -21,7 +20,7 @@ async function login (username, password) {
       accessToken: body.accessJwt,
       refreshToken: body.refreshJwt,
     });
-    CookieMonster.set(SESSION_COOKIE_KEY, session, 30);
+    await CookieMonster.set(SESSION_COOKIE_KEY, session, 30);
   }
 
   return { status, body };
@@ -36,7 +35,7 @@ async function login (username, password) {
  * @returns {Object} An object with status and body properties.
  */
 async function callWithAuth(call, data) {
-  const session = JSON.parse(CookieMonster.get(SESSION_COOKIE_KEY));
+  const session = JSON.parse(await CookieMonster.get(SESSION_COOKIE_KEY));
   if (!session) {
     return;
   }
@@ -53,20 +52,15 @@ async function callWithAuth(call, data) {
   return { status: response.status, body };
 }
 
-async function post(text) {
-  const link = await Browser.getCurrentTabUrl();
-  const card = await getWebsiteCard(link);
-
-  const fullText = text + ' ' + link;
-  const facets = detectFacets(fullText);
+async function post(text, card) {
   const newPost = {
-    text: fullText,
-    facets: facets,
+    text: text,
+    facets: detectFacets(text),
     createdAt: new Date().toISOString(),
   };
 
   if (card) {
-    newPost.embed = card;
+    newPost.embed = await buildCard(card);
   }
 
   return await callWithAuth(BlueSkyApi.post, newPost);
@@ -80,30 +74,20 @@ async function refreshToken(session) {
   if (status !== 200) {
     console.error('Error refreshing token', status, body);
     alert('Something went wrong posting to blue sky, Please try again later');
-    CookieMonster.delete(SESSION_COOKIE_KEY);
+    await CookieMonster.delete(SESSION_COOKIE_KEY);
     return;
   }
 
   session.accessToken = body.accessJwt;
-  CookieMonster.set(SESSION_COOKIE_KEY, JSON.stringify(session), 30);
+  await CookieMonster.set(SESSION_COOKIE_KEY, JSON.stringify(session), 30);
 
   return session;
 }
 
-/**
- * Given a url, returns a website card with uri, title, description, and image properties
- * 
+/** 
  * doc: https://docs.bsky.app/blog/create-post#website-card-embeds
- * 
- * @param {String} url
- * @returns {Object|null} A card object, or null in case of an error.
  */
-async function getWebsiteCard(url) {
-  const card = await WebsiteCard.get(url);
-  if (!card) {
-    return null;
-  }
-
+async function buildCard(card) {
   if (card.image?.includes('://')) {
     try {
       const imageResponse = await fetch(card.image);
@@ -114,7 +98,6 @@ async function getWebsiteCard(url) {
       if (status !== 200) {
         console.warn('Error uploading image', status, body);
       } else {
-        console.debug('upload image', status, body);
         card.thumb = body.blob;
       }
     } catch (error) {
