@@ -1,6 +1,8 @@
 import CookieMonster from './cookie-monster.js';
 
-function isUserLoggedIn() {
+const baseUrl = 'https://bsky.social/';
+
+async function isUserLoggedIn() {
   return !!CookieMonster.get('blue-sky-post-it-session');
 }
 
@@ -226,7 +228,7 @@ async function fetchEmbedUrlCard(url) {
     if (imageTag) {
       let imgUrl = imageTag.getAttribute('content');
       if (!imgUrl.includes('://')) {
-        imgUrl = `${baseUrl}${imgUrl}`;
+        imgUrl = `${url}${imgUrl}`;
       }
       card.image = imgUrl;
     }
