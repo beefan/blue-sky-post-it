@@ -1,5 +1,7 @@
 import CookieMonster from './cookie-monster.js';
 import BlueSkyApi from './blueskyapi.js';
+import Browser from './browser.js';
+import WebsiteCard from './websitecard.js';
 
 const SESSION_COOKIE_KEY = 'blue-sky-post-it-session';
 
@@ -25,33 +27,14 @@ async function login (username, password) {
   return { status, body };
 }
 
-function getCurrentTabUrl() {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-      if (chrome.runtime.lastError) {
-        return reject(chrome.runtime.lastError);
-      }
-      resolve(tabs[0].url);
-    });
-  });
-}
-
-async function post(text) {
-  const link = await getCurrentTabUrl();
-  const card = await fetchEmbedUrlCard(link);
-
-  const fullText = text + ' ' + link;
-  const facets = detectFacets(fullText);
-  const newPost = {
-    text: fullText,
-    facets: facets,
-    createdAt: new Date().toISOString(),
-    embed: card,
-  };
-
-  return await callWithAuth(BlueSkyApi.post, newPost);
-}
-
+/**
+ * Given a bluesky API function to call and data to pass to it,
+ * calls the function while handling token refresh if necessary.
+ * 
+ * @param {Function} call 
+ * @param {any} data 
+ * @returns {Object} An object with status and body properties.
+ */
 async function callWithAuth(call, data) {
   const session = JSON.parse(CookieMonster.get(SESSION_COOKIE_KEY));
   if (!session) {
@@ -59,18 +42,34 @@ async function callWithAuth(call, data) {
   }
 
   let response = await call(data, session);
+  let body = await response.json();
 
-  // blue sky sends 400 on expired tokens
-  // https://docs.bsky.app/docs/api/com-atproto-repo-create-record
-  if (response.status === 400) {
+  if (response.status === 400 && body.error === 'ExpiredToken') {
     const newSession = await refreshToken(session);
     response = await call(data, newSession);
+    body = await response.json();
   }
 
-  const status = response.status;
-  const body = await response.json();
+  return { status: response.status, body };
+}
 
-  return { status, body };
+async function post(text) {
+  const link = await Browser.getCurrentTabUrl();
+  const card = await getWebsiteCard(link);
+
+  const fullText = text + ' ' + link;
+  const facets = detectFacets(fullText);
+  const newPost = {
+    text: fullText,
+    facets: facets,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (card) {
+    newPost.embed = card;
+  }
+
+  return await callWithAuth(BlueSkyApi.post, newPost);
 }
 
 async function refreshToken(session) {
@@ -91,10 +90,59 @@ async function refreshToken(session) {
   return session;
 }
 
-// https://docs.bsky.app/docs/advanced-guides/post-richtext#rich-text-facets
+/**
+ * Given a url, returns a website card with uri, title, description, and image properties
+ * 
+ * doc: https://docs.bsky.app/blog/create-post#website-card-embeds
+ * 
+ * @param {String} url
+ * @returns {Object|null} A card object, or null in case of an error.
+ */
+async function getWebsiteCard(url) {
+  const card = await WebsiteCard.get(url);
+  if (!card) {
+    return null;
+  }
+
+  if (card.image?.includes('://')) {
+    try {
+      const imageResponse = await fetch(card.image);
+      const imageBlob = await imageResponse.blob();
+
+      const {status, body } = await callWithAuth(BlueSkyApi.uploadImageBlob, imageBlob);
+
+      if (status !== 200) {
+        console.warn('Error uploading image', status, body);
+      } else {
+        console.debug('upload image', status, body);
+        card.thumb = body.blob;
+      }
+    } catch (error) {
+      console.warn('Error fetching or uploading the image:', error);
+    }
+  }
+
+  return {
+    "$type": "app.bsky.embed.external",
+    "external": card,
+  };
+}
+
+/**
+ * Detects links and tags in a text and returns a list of facets.
+ * 
+ * doc: https://docs.bsky.app/docs/advanced-guides/post-richtext#rich-text-facets
+ * 
+ * @param {String} text 
+ * @returns {Array} An array of facets, or undefined if no facets are found.
+ */
 function detectFacets(text) {
   let match
   const facets = [];
+  const utf16IndexToUtf8Index = (utf16, index) => {
+    return (new TextEncoder()).encode(utf16.slice(0, index)).byteLength;
+  }
+
   {
     // links
     const re =
@@ -162,75 +210,7 @@ function detectFacets(text) {
     }
   }
   return facets.length > 0 ? facets : undefined
-}
-
-function utf16IndexToUtf8Index(utf16, index) {
-  return (new TextEncoder()).encode(utf16.slice(0, index)).byteLength;
-}
-
-// https://docs.bsky.app/blog/create-post#website-card-embeds
-async function fetchEmbedUrlCard(url) {
-  const card = {
-    uri: url,
-    title: "",
-    description: "",
-  };
-
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-    const text = await response.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(text, 'text/html');
-
-    const titleTag = doc.querySelector('meta[property="og:title"]');
-    if (titleTag) {
-      card.title = titleTag.getAttribute('content');
-    }
-
-    const descriptionTag = doc.querySelector('meta[property="og:description"]');
-    if (descriptionTag) {
-      card.description = descriptionTag.getAttribute('content');
-    }
-
-    const imageTag = doc.querySelector('meta[property="og:image"]');
-    if (imageTag) {
-      let imgUrl = imageTag.getAttribute('content');
-      if (!imgUrl.includes('://')) {
-        imgUrl = `${url}${imgUrl}`;
-      }
-      card.image = imgUrl;
-    }
-  } catch (error) {
-    console.error('Error fetching or parsing the URL:', error);
-  }
-
-  // get blob from image url
-  if (card.image.includes('://')) {
-    try {
-      const imageResponse = await fetch(card.image);
-      const imageBlob = await imageResponse.blob();
-
-      const {status, body } = await callWithAuth(BlueSkyApi.uploadImageBlob, imageBlob);
-
-      if (status !== 200) {
-        console.error('Error uploading image', status, body);
-      } else {
-        console.log('upload image', status, body);
-        card.thumb = body.blob;
-      }
-    } catch (error) {
-      console.error('Error fetching or uploading the image:', error);
-    }
-  }
-
-  return {
-    "$type": "app.bsky.embed.external",
-    "external": card,
-  };
-}
+} 
 
 export default {
   login,
