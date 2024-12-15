@@ -4,11 +4,20 @@
   "version": "1.0",
   "manifest_version": 3,
   "action": {
+    "default_title": "Post this site to Blue Sky",
     "default_popup": "index.html",
-    "default_icon": "blue-sky-post-it.png"
+    "default_icon": "bsky-postit-logo.png"
   },
   "permissions": [
     "tabs",
-    "activeTab"
-  ]
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*/"
+  ],
+  "background": {
+    "service_worker": "./js/serviceworker.js",
+    "type": "module"
+  }
 }
