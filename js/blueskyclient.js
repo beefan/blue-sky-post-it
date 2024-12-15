@@ -1,11 +1,11 @@
-import CookieMonster from './cookiemonster.js';
+import Cookies from './cookiemonster.js';
 import BlueSkyApi from './blueskyapi.js';
 
 const SESSION_COOKIE_KEY = 'blue-sky-post-it-session';
 
 
 async function isUserLoggedIn() {
-  const session = await CookieMonster.get(SESSION_COOKIE_KEY);
+  const session = await Cookies.get(SESSION_COOKIE_KEY);
   return !!session;
 }
 
@@ -20,7 +20,7 @@ async function login (username, password) {
       accessToken: body.accessJwt,
       refreshToken: body.refreshJwt,
     });
-    await CookieMonster.set(SESSION_COOKIE_KEY, session, 30);
+    await Cookies.set(SESSION_COOKIE_KEY, session);
   }
 
   return { status, body };
@@ -35,7 +35,7 @@ async function login (username, password) {
  * @returns {Object} An object with status and body properties.
  */
 async function callWithAuth(call, data) {
-  const session = JSON.parse(await CookieMonster.get(SESSION_COOKIE_KEY));
+  const session = JSON.parse(await Cookies.get(SESSION_COOKIE_KEY));
   if (!session) {
     return;
   }
@@ -74,12 +74,12 @@ async function refreshToken(session) {
   if (status !== 200) {
     console.error('Error refreshing token', status, body);
     alert('Something went wrong posting to blue sky, Please try again later');
-    await CookieMonster.delete(SESSION_COOKIE_KEY);
+    await Cookies.delete(SESSION_COOKIE_KEY);
     return;
   }
 
   session.accessToken = body.accessJwt;
-  await CookieMonster.set(SESSION_COOKIE_KEY, JSON.stringify(session), 30);
+  await Cookies.set(SESSION_COOKIE_KEY, JSON.stringify(session));
 
   return session;
 }
