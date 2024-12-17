@@ -2,21 +2,20 @@
   "name": "Blue Sky Post It",
   "description": "With two clicks, post the current link, with a comment to Blue Sky.",
   "version": "1.0",
-  "manifest_version": 3,
-  "action": {
+  "manifest_version": 2,
+  "browser_action": {
     "default_title": "Post this site to Blue Sky",
     "default_popup": "index.html"
   },
   "permissions": [
     "tabs",
     "activeTab",
-    "storage"
-  ],
-  "host_permissions": [
+    "storage",
     "https://*/"
   ],
   "background": {
-    "service_worker": "./js/serviceworker.js",
+    "scripts": ["./js/serviceworker.js"],
+    "persistent": true,
     "type": "module"
   },
   "icons": {
@@ -24,5 +23,5 @@
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }   
+  }
 }
