@@ -37,7 +37,9 @@ Features:
 
 # How to install
 
-This extension will be submitted for review with both Firefox and Chrome. Once published, the links will be added here. However, there are processes where you can use this repository to install the extension directly.
+This extension will be submitted for review with both Firefox and Chrome. Once published, the links will be added here. However, there are processes where you can use this repository to install the extension directly. This extension was designed for Chrome manifest v3, but works with Firefox with no changes, other than loading the Firefox compatible manifest file.
+
+To reduce confusion, there are two manifest files titled accordingly. If you want to use firefox, for instance, paste the contents of the `manifest_firefox.json` into `manifest.json` before loading the extension.
 
 ## On Chrome
 
