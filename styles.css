@@ -16,6 +16,8 @@
 #open-comment-box>label {
   color: #00008b; /* Dark blue text */
   font-size: 16px;
+  font-family: Arial, Helvetica, sans-serif;
+  max-width: 200px;
 }
 
 #success-message {

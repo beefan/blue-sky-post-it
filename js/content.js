@@ -83,10 +83,11 @@ function displayBlueSkyLogin() {
 }
 
 async function login(username, password) {
-  chrome.runtime.sendMessage({
-    action: actions.BLUE_SKY_LOGIN,
-    data: {username, password},
-  }, (response) => {
+    const response = await takeAction(
+      actions.BLUE_SKY_LOGIN, 
+      {username, password}
+    );
+
     if (response.status !== 200) {
       console.warn('Cant log in to blue sky', response);
       displayError(response.body?.message);
@@ -94,7 +95,6 @@ async function login(username, password) {
     }
 
     displayOpenCommentBox();
-  });
 }
 
 function displaySuccess() {
@@ -133,10 +133,10 @@ async function postIt(text) {
 
   displayLoading();
 
-  const siteTextResponse = await chrome.runtime.sendMessage({
-    action: actions.FETCH_SITE_TEXT,
-    data: { url },
-  });
+  const siteTextResponse = await takeAction(
+    actions.FETCH_SITE_TEXT,
+    { url },
+  );
 
   if (siteTextResponse.status !== 200) {
     console.warn('Error fetching site text', siteTextResponse);
@@ -146,10 +146,10 @@ async function postIt(text) {
 
   const card = await WebsiteCard.get(url, siteTextResponse.body);
 
-  const postResponse = await chrome.runtime.sendMessage({
-    action: actions.BLUE_SKY_POST,
-    data: { text: fullText, card },
-  });
+  const postResponse = await takeAction(
+    actions.BLUE_SKY_POST,
+    { text: fullText, card },
+  );
 
   if (postResponse.status !== 200) {
     console.warn('Error posting to blue sky', postResponse);
@@ -158,5 +158,19 @@ async function postIt(text) {
   }
 
   displaySuccess();
+}
+
+async function takeAction(action, data) {
+  return new Promise((resolve, reject) => {
+     chrome.runtime.sendMessage({
+      action: action,
+      data: data,
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        return reject(chrome.runtime.lastError);
+      }
+      resolve(response);
+    });
+  });
 }
 
