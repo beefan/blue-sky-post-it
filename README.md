@@ -47,7 +47,8 @@ To reduce confusion, there are two manifest files titled accordingly. If you wan
 
 ## On Firefox
 
-[Loading a temporary extension in Firefox](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/#:~:text=open%20Firefox,zip%20file)
+- Download the published version right from the [add-ons store](https://addons.mozilla.org/en-US/firefox/addon/blue-sky-post-it/)
+- Alternatively, see: [Loading a temporary extension in Firefox](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/#:~:text=open%20Firefox,zip%20file)
 
 # Can I improve code?
 
